@@ -27,6 +27,7 @@ This is useful context for understanding how the field moved from task-specific 
 
 ## Questions
 
+- What is a Transformer, and what does it mean for BERT to be "Transformer-based"?
 - What exactly is the difference between encoder-only, decoder-only, and encoder-decoder Transformers?
 - Why did masked language modeling work well for BERT-style pre-training?
 - Which parts of the BERT workflow still matter for modern language models?
