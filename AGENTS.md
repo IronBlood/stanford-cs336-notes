@@ -23,6 +23,7 @@ Use this structure unless the owner changes it:
 ├── AGENTS.md
 ├── llm-wiki.md
 ├── index.md
+├── assignments/
 ├── notes/
 │   ├── lectures/
 │   ├── concepts/
@@ -39,10 +40,11 @@ Use this structure unless the owner changes it:
 ```
 
 - `index.md`: content-oriented map of the wiki. Update when adding or substantially reorganizing pages.
+- `assignments/`: code for course assignments. Use one subdirectory per assignment, such as `assignments/assignment-01/`.
 - `notes/lectures/`: class-by-class notes from videos or live materials.
 - `notes/concepts/`: durable concept pages, such as tokenization, transformers, attention, backpropagation, optimization, scaling laws, evaluation, and inference.
 - `notes/papers/`: paper summaries and reading notes.
-- `notes/assignments/`: assignment notes, implementation notes, debugging records, and conceptual takeaways.
+- `notes/assignments/`: assignment writeups, implementation notes, debugging records, and conceptual takeaways.
 - `notes/questions/`: useful Q&A, comparisons, explanations, and unresolved confusions worth keeping.
 - `raw/`: immutable or mostly immutable source files. The agent may read but should not rewrite these unless explicitly asked.
 - `scratch/`: temporary drafts, experiments, extracted text, and intermediate analysis. Anything here may be messy.
@@ -51,15 +53,17 @@ Create directories as needed. Do not create empty structure just for completenes
 
 ## Page Conventions
 
-Prefer concise markdown pages that are easy to read in Obsidian and easy to search with command-line tools.
+Prefer concise vanilla Markdown pages that render well on GitHub and are easy to search with command-line tools.
 
-Use wiki links for internal references:
+Use standard Markdown links for internal references:
 
 ```markdown
-[[attention]]
-[[lecture-01-overview]]
-[[attention-is-all-you-need]]
+[attention](../concepts/attention.md)
+[Lecture 1](../lectures/01-overview.md)
+[Attention Is All You Need](../papers/attention-is-all-you-need.md)
 ```
+
+Do not use Obsidian-style `[[wiki links]]` unless the owner explicitly changes the convention later.
 
 Use lowercase kebab-case filenames:
 
@@ -183,13 +187,13 @@ Avoid making a concept page for every term too early. Create one when a concept 
 
 ## Assignment Notes
 
-Assignment notes may include implementation plans, pitfalls, debugging findings, and conceptual takeaways. Keep actual assignment code in the assignment's expected location if the course provides one.
+Assignment notes may include implementation plans, pitfalls, debugging findings, and conceptual takeaways. Keep actual assignment code under `assignments/` unless the course provides a required layout.
 
 When helping with assignments:
 
 - Do not jump straight to final code if the owner is trying to learn the concept.
 - Prefer explaining the model, tensor shapes, invariants, and tests.
-- When editing code, follow the repository's coding conventions and keep changes focused.
+- When editing assignment code, keep changes inside the relevant `assignments/assignment-N/` directory unless shared utilities are clearly needed.
 - Preserve academic integrity constraints if the course states any.
 
 ## Index Maintenance
@@ -250,4 +254,3 @@ For linting:
 - Distinguish course explanation, paper claim, implementation note, and personal interpretation.
 - Avoid unnecessary polish that hides rough learning state.
 - Do not add decorative content, motivational summaries, or generic study advice.
-
