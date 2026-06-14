@@ -23,6 +23,10 @@ People sometimes describe tensors by their rank, meaning the number of axes or d
 
 The word "rank" can mean different things in linear algebra, but in ML framework documentation it often means "number of dimensions". The shape tells us the size along each dimension.
 
+## Small Code Examples
+
+- [color-blend.py](../../experiment/color-blend.py): treats RGB colors as rank-1 tensors, blends red and blue with tensor arithmetic, then saves the result as a small BMP image.
+
 ## Why It Matters
 
 ML code is often about keeping tensor shapes correct.
@@ -47,8 +51,8 @@ Understanding tensors mostly means understanding:
 - whether the tensor lives on CPU or GPU;
 - whether the tensor is being tracked for gradients.
 
-## Future Related Concepts
+## Related Concepts
 
-- PyTorch
-- TensorFlow
+- [PyTorch](pytorch.md)
+- [TensorFlow](tensorflow.md)
 - Automatic differentiation
