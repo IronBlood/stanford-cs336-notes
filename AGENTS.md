@@ -29,6 +29,7 @@ Use this structure unless the owner changes it:
 │   ├── concepts/
 │   ├── papers/
 │   ├── assignments/
+│   ├── tools/
 │   └── questions/
 ├── raw/
 │   ├── papers/
@@ -45,6 +46,7 @@ Use this structure unless the owner changes it:
 - `notes/concepts/`: durable concept pages, such as tokenization, transformers, attention, backpropagation, optimization, scaling laws, evaluation, and inference.
 - `notes/papers/`: paper summaries and reading notes.
 - `notes/assignments/`: assignment writeups, implementation notes, debugging records, and conceptual takeaways.
+- `notes/tools/`: notes about tools used for the course, such as Python packaging, `uv`, notebooks, or command-line utilities.
 - `notes/questions/`: useful Q&A, comparisons, explanations, and unresolved confusions worth keeping.
 - `raw/`: immutable or mostly immutable source files. The agent may read but should not rewrite these unless explicitly asked.
 - `scratch/`: temporary drafts, experiments, extracted text, and intermediate analysis. Anything here may be messy.

@@ -1,0 +1,8 @@
+version = 1
+revision = 3
+requires-python = ">=3.13"
+
+[[package]]
+name = "stanford-cs336-language-modeling-from-scratch-2026-notes"
+version = "0.1.0"
+source = { virtual = "." }

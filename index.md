@@ -14,3 +14,7 @@ course: cs336
 
 - [BERT](notes/concepts/bert.md): Pre-trained Transformer model mentioned as an example of the older download-and-fine-tune workflow.
 - [Tensor](notes/concepts/tensor.md): Multi-dimensional array of numbers; the basic data container used in ML frameworks.
+
+## Tools
+
+- [uv](notes/tools/uv.md): Python project and package management notes for course experiments and assignment code.
