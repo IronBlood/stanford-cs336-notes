@@ -46,7 +46,7 @@ Possible layout:
 │   └── tensors/
 │       └── shapes.py
 ├── assignments/
-│   └── assignment-01/
+│   └── assignment1-basics/
 │       └── ...
 └── notes/
 ```
@@ -142,9 +142,163 @@ This can be useful for quick experiments, but for course work it is usually bett
 - `notes/`: wiki notes; not Python package code.
 - `scratch/`: temporary files and throwaway experiments.
 
+## Multiple Course Assignments
+
+The Stanford assignment repos are Python projects. For example, the first assignment repo root contains files like:
+
+```text
+uv.lock
+pyproject.toml
+cs336_basics/
+tests/
+```
+
+In this notes repo, map each original assignment repo root into its own subdirectory:
+
+```text
+assignments/
+└── assignment1-basics/
+    ├── uv.lock
+    ├── pyproject.toml
+    ├── cs336_basics/
+    └── tests/
+```
+
+Then run the assignment's commands from that directory:
+
+```bash
+cd assignments/assignment1-basics
+uv run pytest
+```
+
+This preserves the assignment's expected import paths and test setup.
+
+Do not put all assignments' `cs336_*` packages and `tests/` directories directly under the repo root. That would make names collide and make it harder to reproduce the course instructions.
+
+### Assignment Dependencies
+
+Some assignments may depend on earlier assignments.
+
+For example, assignment 1 declares the package:
+
+```toml
+[project]
+name = "cs336_basics"
+```
+
+Assignment 2 may declare:
+
+```toml
+[project]
+name = "cs336-systems"
+dependencies = [
+    "cs336-basics",
+]
+```
+
+The underscore vs hyphen difference is normal in Python package metadata: distribution names are commonly normalized, so `cs336_basics` and `cs336-basics` refer to the same package name for dependency resolution.
+
+This means the assignments are not just unrelated folders. Later assignments may need earlier assignment code to be installable.
+
+### Why Not One Flat Root Project?
+
+A flat root project would look like this:
+
+```text
+.
+├── pyproject.toml
+├── uv.lock
+├── cs336_basics/
+├── tests/
+└── ...
+```
+
+That is close to the original assignment repo, but it only works cleanly for one assignment at a time. As soon as there are multiple assignments, root-level package names, test folders, and dependency versions may conflict.
+
+### uv Workspace Option
+
+`uv` also supports workspaces, where multiple packages live in one repository and share one lockfile. That is closer to pnpm/yarn workspace terminology.
+
+This can fit the CS336 assignments if they are meant to build on each other and have compatible dependency requirements.
+
+A possible layout:
+
+```text
+.
+├── pyproject.toml
+├── uv.lock
+└── assignments/
+    ├── assignment1-basics/
+    │   ├── pyproject.toml
+    │   ├── cs336_basics/
+    │   └── tests/
+    └── assignment2-systems/
+        ├── pyproject.toml
+        ├── cs336_systems/
+        └── tests/
+```
+
+Root `pyproject.toml` would include:
+
+```toml
+[tool.uv.workspace]
+members = ["assignments/assignment*"]
+```
+
+Then assignment 2 can point its `cs336-basics` dependency at the workspace member:
+
+```toml
+[tool.uv.sources]
+cs336-basics = { workspace = true }
+```
+
+Run tests for a specific package from the workspace root:
+
+```bash
+uv run --package cs336-systems pytest
+```
+
+Or from the assignment directory:
+
+```bash
+cd assignments/assignment2-systems
+uv run pytest
+```
+
+The benefit: the assignment packages can depend on each other locally, and uv manages one consistent environment.
+
+The cost: a workspace shares one lockfile and effectively one resolved dependency set. That is less isolated than preserving each assignment's original `uv.lock`.
+
+### Independent Projects With Path Dependencies
+
+If preserving each assignment's original lockfile matters more, keep each assignment as an independent uv project and add a local path source in the later assignment.
+
+For example, in `assignments/assignment2-systems/pyproject.toml`:
+
+```toml
+[tool.uv.sources]
+cs336-basics = { path = "../assignment1-basics", editable = true }
+```
+
+Then run:
+
+```bash
+cd assignments/assignment2-systems
+uv run pytest
+```
+
+This keeps assignment 2 independent while still allowing it to import assignment 1 as a local package.
+
+### Rule Of Thumb
+
+Start with independent assignment folders. When a later assignment actually depends on an earlier package, choose:
+
+- Path dependency: best when preserving the original assignment lockfiles and isolation matters.
+- uv workspace: best when assignments are meant to be developed together and compatible dependencies are expected.
+
 ## Questions
 
-- Should assignments share the root uv project, or should a specific assignment have its own project if the course requires exact dependencies?
+- Should assignment dependencies use local path sources or a uv workspace?
 - When should repeated experiment code become a real Python module?
 - How should PyTorch dependencies be added, especially if CUDA-specific installation matters?
 
@@ -154,3 +308,4 @@ This can be useful for quick experiments, but for course work it is usually bett
 - [uv docs: Managing dependencies](https://docs.astral.sh/uv/concepts/projects/dependencies/)
 - [uv docs: Running commands in projects](https://docs.astral.sh/uv/concepts/projects/run/)
 - [uv docs: Running scripts](https://docs.astral.sh/uv/guides/scripts/)
+- [uv docs: Using workspaces](https://docs.astral.sh/uv/concepts/projects/workspaces/)
