@@ -10,6 +10,7 @@ The owner writes first. The agent reviews, asks questions, suggests structure an
 notes/
 ├── lectures/      # class-by-class notes
 ├── concepts/      # reusable explanations
+├── datasets/      # dataset notes
 ├── papers/        # paper reading notes
 ├── assignments/   # assignment writeups and debugging notes
 ├── tools/         # uv, Python tooling, environment notes
@@ -28,6 +29,7 @@ Recommended `type` values:
 - `lecture`
 - `concept`
 - `paper`
+- `dataset`
 - `assignment`
 - `tool`
 - `question`

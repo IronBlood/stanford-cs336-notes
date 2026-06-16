@@ -13,6 +13,7 @@ This repo uses a hybrid workflow.
 - Prefer incremental changes over big reorganizations. Let the wiki structure evolve from actual notes and sources.
 - Preserve the owner's voice in user-authored notes. Improve clarity and structure without replacing personal understanding with generic summaries.
 - Treat raw sources as source of truth. Do not silently alter downloaded papers, transcripts, slides, or assignment handouts.
+- When the owner asks to initialize, scaffold, or create a template page, create headings and minimal metadata only. Do not fill explanatory content, facts, summaries, or suggested answers unless the owner explicitly asks for seeding content.
 
 For ML/course-core material, especially PyTorch, NumPy, model code, tensor operations, tokenizers, optimizers, training loops, and assignment implementations, do not modify the owner's code directly unless the owner explicitly asks for a narrow non-core utility change. Prefer discussion, code review, hints, invariants, shape checks, and small experiments the owner can write.
 
@@ -101,6 +102,13 @@ For source ingest:
 3. Extract reusable concepts into concept pages only when valuable.
 4. Add links between lecture, paper, assignment, and concept pages.
 5. Update `index.md`.
+
+For template initialization:
+
+1. Create the requested page with frontmatter and headings only.
+2. Include source URLs only if the owner already provided them or explicitly asked to keep them.
+3. Do not browse, summarize, infer likely relevance, or add questions unless asked.
+4. Update navigation files only with minimal one-line entries.
 
 For queries:
 
