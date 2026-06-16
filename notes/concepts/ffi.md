@@ -9,3 +9,7 @@ High-level programming languages usually provide convenient features such as cro
 FFI allows programmers to implement functions in low-level programming languages (usually C, C++ and Rust), then invoke them from other programming languages such as Java, Node.js, Ruby and Python.
 
 FFI does not automatically make code faster. Crossing the language boundary has overhead, so FFI is most useful when the lower-level function does enough work to justify that cost. At the lower level, programmers have the ability to invoke more powerful APIs (for example CUDA and video decoding). FFI can combine programmer productivity with low-level runtime performance.
+
+## Also See
+
+- [PyO3](../tools/pyo3.md)
