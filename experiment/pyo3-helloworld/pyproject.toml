@@ -16,3 +16,7 @@ classifiers = [
 dev = [
     "maturin>=1.14.0",
 ]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
