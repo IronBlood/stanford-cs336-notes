@@ -19,4 +19,4 @@ name = "pyo3_helloworld"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.29.0" }
+pyo3 = { version = "0.29.0", features = ["experimental-inspect"] }
