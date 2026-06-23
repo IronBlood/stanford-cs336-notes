@@ -32,6 +32,13 @@ pyo3 = { version = "0.29.0", features = ["experimental-inspect"] }
 
 Calling `maturing develop --generate-stubs` will generate `*.pyi` files as well.
 
+## Type conventions
+
+In [this page](https://pyo3.rs/main/conversions/tables.html) there are two table:
+
+- Argument Types: the Python types that will be converted to function argument types
+- Returning Rust values to Python
+
 ## Related Topics and Links
 
 - [Foreign Function Interface](../concepts/ffi.md)
