@@ -1,21 +1,11 @@
 # PyO3
 
-[PyO3](https://github.com/pyo3/pyo3) provides [Rust](https://www.rust-lang.org/) bindings for Python. In [this example](../../experiment/pyo3-helloworld/):
+[PyO3](https://github.com/pyo3/pyo3) provides [Rust](https://www.rust-lang.org/) bindings for Python.
 
-- [src/lib.rs](../../experiment/pyo3-helloworld/src/lib.rs) provides a function which returns a string
-- [python/caller.py](../../experiment/pyo3-helloworld/python/caller.py) calls the function and prints the string.
+There are two related experiments:
 
-## How to build
-
-[`maturin`](https://github.com/PyO3/maturin) is used in [pyproject.toml](../../experiment/pyo3-helloworld/pyproject.toml). To build and run the project, run the following commands inside the subproject folder:
-
-```bash
-source .venv/bin/activate
-maturin develop
-python python/caller.py
-```
-
-> **NOTE**: For this local extension experiment, avoid running `maturin` through `uv run`. In testing, uv reused cached editable build artifacts, so changes to the Rust source did not always appear in the installed Python module. Activating the project virtual environment and running `maturin develop` directly made the rebuild/install loop easier to reason about.
+- [pyo3-helloworld](../../experiment/pyo3-helloworld): the first experiment tries to explore how to wire up Rust and Python.
+- [maturin-mixed-layout](../../experiment/maturin-mixed-layout/): the second experiment tries to pair `maturin` together with `uv`
 
 ## Type stub generation (`*.pyi` files)
 
@@ -30,11 +20,11 @@ Without a stub file, the language server doesn't know what are provided from the
 pyo3 = { version = "0.29.0", features = ["experimental-inspect"] }
 ```
 
-Calling `maturing develop --generate-stubs` will generate `*.pyi` files as well.
+Calling `maturin develop --generate-stubs` will generate `*.pyi` files as well.
 
 ## Type conventions
 
-In [this page](https://pyo3.rs/main/conversions/tables.html) there are two table:
+In [this page](https://pyo3.rs/main/conversions/tables.html) there are two tables:
 
 - Argument Types: the Python types that will be converted to function argument types
 - Returning Rust values to Python
