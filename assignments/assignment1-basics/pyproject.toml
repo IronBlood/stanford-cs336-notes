@@ -21,6 +21,11 @@ dependencies = [
     "ruff>=0.15.8",
 ]
 
+[dependency-groups]
+dev = [
+    "maturin>=1.14.0",
+]
+
 [build-system]
 requires = ["uv_build>=0.11.0,<0.12.0"]
 build-backend = "uv_build"

@@ -50,3 +50,118 @@ The function tries to decode byte by byte. It works for the example input, which
 > Give a two-byte sequence that does not decode to any Unicode character(s).
 
 `b"\xFF\xFF"` does not decode to any Unicode character(s).
+
+## Problem train_bpe
+
+> Write a function that, given a path to an input text file, trains a (byte-level) BPE
+> tokenizer. Your BPE training function should handle (at least) the following input parameters:
+>
+> **Input**
+>
+> - `input_path`: `str` Path to a text file with BPE tokenizer training data.
+> - `vocab_size`: `int` A positive integer that defines the maximum final vocabulary size (including the initial byte vocabulary, vocabulary items produced from merging, and any special tokens).
+> - `special_tokens`: `list[str]` A list of strings to add to the vocabulary. During training, treat them as hard boundaries that prevent merges across their spans, but do not include them when computing merge statistics.
+>
+> Your BPE training function should return the resulting vocabulary and merges:
+>
+> **Output**
+>
+> - `vocab`: `dict[int, bytes]` The tokenizer vocabulary, a mapping from int (token ID in the vocabulary) to bytes (token bytes).
+> - `merges`: `list[tuple[bytes, bytes]]` A list of BPE merges produced from training. Each list item is a tuple of bytes `(<token1>, <token2>)`, representing that `<token1>` was merged with `<token2>`. The merges should be ordered by order of creation.
+>
+> To test your BPE training function against our provided tests, you will first need to implement the test adapter at `adapters.run_train_bpe`. Then, run `uv run pytest tests/test_train_bpe.py`. Your implementation should be able to pass all tests. Optionally (this could be a large time-investment), you can implement the key parts of your training method using some systems language, for instance C++ (consider `cppyy` or `nanobind`) or Rust (using `PyO3`). If you do this, be aware of which operations require copying vs reading directly from Python memory, and make sure to leave build instructions, or make sure it builds using only `pyproject.toml`. Also note that the GPT-2 regex is not well-supported in most regex engines and will be too slow in most that do. We have verified that Oniguruma is reasonably fast and supports negative lookahead, but the regex package in Python is, if anything, even faster.
+
+### Notes for `pretokenization_example.py`
+
+The example in [pretokenization_example.py](../../assignments/assignment1-basics/cs336_basics/pretokenization_example.py) divides a file into smaller chunks whose boundaries are aligned with a special token:
+
+1. It calculates approximately even byte-offset guesses using `file_size // desired_num_chunks`.
+2. For each internal guess, it searches forward in blocks of up to 4 KiB for the next complete occurrence of the special token.
+3. It replaces the guessed boundary with the byte offset where that special token begins. If no special token is found before EOF, it moves the boundary to EOF.
+4. It removes duplicate boundaries and pairs adjacent boundaries to define the byte range of each chunk.
+5. It reads each range as bytes and then decodes it as UTF-8 for pre-tokenization. Because a boundary points to the first byte of a special token, that token begins the following chunk.
+
+### Implementation and Test Results
+
+The whole implementation contains three layers:
+
+1. (Python) The entrance: [bpe.py](../../assignments/assignment1-basics/cs336_basics/bpe.py) calls the native extension
+2. (PyO3) The Python/Rust glue layer: [lib.rs](../../assignments/assignment1-basics/src/lib.rs) handles the parameters from Python, calls the actual implementation and then prepares the final data format.
+3. (Rust) The implementation: [util.rs](https://github.com/IronBlood/cs336-rs/blob/bf5ce8f8adaddaa091f91974e494760c3948c290/src/utils.rs)
+
+All three tests passed. With `dev` profile (unoptimized + debuginfo), `test_train_bpe_speed` takes 0.11s; switching to `release` profile (optimized), `test_train_bpe_speed` takes 0.05s.
+
+> NOTE: The reference implementation takes 0.38s on the lecturer's laptop, and the test requires the runtime to be finished within 1.5s. The [first bug-fixed Rust implementation](https://github.com/IronBlood/cs336-rs/commit/550e15058dd7ea2ed263ea1487dd3a7e26fac145) takes about 2s with `dev` profile, 0.2s with `release` profile.
+
+### Why Rust is Used
+
+BPE tokenizer training doesn't invoke any PyTorch operations, it is pure string and byte level operations. The tokenizer will later be used on the TinyStories dataset and the OpenWebText dataset. The OpenWebText dataset is about 12G, while the TinyStories dataset is smaller, but still 2.2G. String is a built-in type in Python. When doing string operations, such as `text[start:end]` and `text.split(",")`, new string objects are created, and extra spaces are allocated to store the copied data.
+
+> NOTE: Python has an API `memoryview()`, a zero-copy mechanism to view over bytes-like buffers. Due to my limited Python experience, this doesn't seem a direct solution for Python `str` slicing.
+
+Rust, on the other hand, is more flexible. Bytes can be store as `Vec<u8>`, and string slices ([`&str`](https://doc.rust-lang.org/std/primitive.str.html)) can be created with `str::from_utf8`. Unlike a `String` type, which has an owned UTF-8 buffer, `&str` is a borrowed UTF-8 view, it only stores the slice descriptor. That means if the RAM is large enough, after loading the whole text file into RAM, using string slices can be lightweight than copying bytes between buffers, while at the same time, it's able to be passed to regular expression engines.
+
+[PyO3](../tools/pyo3.md) fills the gap between Python and Rust. It converts data types from Python, calls the native APIs, and converts data types from Rust back to Python.
+
+So the Python layer and PyO3 layer are very thin, the heavy work is done in the Rust layer.
+
+### Key Data Types
+
+There are a few aliases used to make the raw data type meaningful:
+
+- `TokenBytes` (`Vec<u8>`): `u8`, an unsigned 8-bit integer, commonly written as `uint8`, `uint8_t` or `byte` in some other programming languages, is a primitive type in Rust. Vectors in Rust are resizable arrays.
+- `TokenId` (`u16`): `u16`, similarly to `u8`, is another primitive type in Rust. It represents an unsigned 16-bit integer. The range of `u8` is `0~255`. The initial `vocab` contains these tokens. However when merging byte pairs, new token IDs will be created, they will be greater than `255`, so `u8` isn't enough to hold these values. Luckily, when training on TinyStories and OpenWebText, the maximum vocabulary size is 32k. The maximum number `u16` can hold is `0xFFFF` which is `65535` in decimal, is greater than 32k, so `u16` can be used to represent `TokenId`.
+- `TokenIds` (`Vec<u16>`): After the pre-tokenization, the raw `TokenBytes` will be converted to `TokenIds` for training.
+- `PackedPair` (`u32`): During the training, byte pairs, in fact pairs of token ids, will be counted, a `HashMap` will be used. We can use an array `[u16; 2]` or a tuple `(u16, u16)`, because the `std::collections::HashMap` accepts multiple types as keys in a hash map, as long as these types implement both the `Eq` and `Hash` traits. However these types are less efficient for hashing, and luckily, two 16-bit integers can be grouped as a 32-bit integer easily with bitwise operations, the same as unpacked from a 32-bit integer.
+
+### High-Level Overview
+
+The Rust native code is designed and implemented with efficiency in mind.
+
+#### Multi-threading
+
+There are multiple steps during the whole process with similar situation: a group of data needs to be handled with the same process individually. This is very ideal for multi-threading. The main thread splits the group into non-overlapping chunks, each chunk is handled by a thread, each thread collects data, then the main thread merges these data.
+
+> NOTE: Python also provides parallelism, in fact there are two concepts, multithreading vs multiprocessing. However due to the GIL (Global Interpreter Lock), standard CPython (before 3.14) limits CPU-bound multithreading (e.g. string processing), it's suitable for IO-related jobs. Multiprocessing suits this case, but it spawns new processes on the running system, and IPC (inter-process communication) is expensive. Keep this in mind if you are going to use parallelism in pure Python.
+
+#### Regular Expression Engine
+
+Regular expressions in this assignment are used for two situations:
+
+- to split the text by special tokens which act as delimiters or hard boundaries.
+- to pre-tokenize documents, see [gpt2-pretokenization-regex](../concepts/gpt2-pretokenization-regex.md).
+
+The Python package `regex` isn't used because the whole process is designed in the pure Rust land, exchanging string between Rust and Python will be expensive, and lose the RAM efficient approach.
+
+The widely used crate [`regex`](https://github.com/rust-lang/regex) isn't used as well, according to GPT and other language models (fact not checked yet), this crate does not support possessive quantifiers (e.g., `.*+` or `++`). Other Rust crates like [`fancy-regex`](https://github.com/fancy-regex/fancy-regex) and [`rust-onig`](https://github.com/rust-onig/rust-onig) may support that feature, however, I didn't choose these because I had not evaluated their compatibility, performance, and dependency tradeoffs yet.
+
+[`libpcre2`](https://www.pcre.org) is chosen because:
+
+1. It is a widely used, open-source C library that implements regular expression pattern matching using the same syntax and semantics as Perl 5
+2. It is fundamental for powering regex capabilities in high-profile projects like Apache, PHP and Nmap. It can be installed via the system package manager on many Linux systems.
+3. It supports **possessive quantifiers**.
+4. It is possible to call C functions from Rust with [FFI](../concepts/ffi.md).
+
+There is a wrapper [rust-pcre2](https://github.com/BurntSushi/rust-pcre2), but since there are not many APIs to be wrapped for this project, for educational purpose, a thin AI-made layer is used. Checkout [ffi.rs](https://github.com/IronBlood/cs336-rs/blob/main/src/ffi.rs).
+
+#### The Flow
+
+This section only talks the flow in the Rust layer, checkout [profile_bpe.rs](https://github.com/IronBlood/cs336-rs/blob/main/src/bin/profile_bpe.rs) to see the complete flow.
+
+1. `find_chunk_boundaries` borrows the idea from `pretokenization_example.py`. The whole file content is read to RAM first, then this function finds boundaries similarly within every chunk of 4096 bytes.
+2. `find_pretoken_spans` uses these boundaries to continue splitting the content in parallel by special tokens, returning vectors of `(usize, usize)` to represent the starting location (included) and the ending location (excluded) in the raw bytes of the content.
+3. `build_token_freq_map` uses the GPT2 pretokenization regular expression to find what original tokens need to be trained and how many of each of the tokens.
+4. `train_bpe` deals with byte pairs, merges and builds the vocabulary.
+
+### Validations and Optimizations
+
+[verify.py](../../assignments/assignment1-basics/verify.py) is a naive implementation to validate the correctness of the Rust pretokenization. There is a binary in the Rust implementation which serialize the tokens (before training) and counts to a TSV format file, and this python script parses in an unoptimized approach, deserialize the TSV file, and compare the keys and counts. `TinyStoriesV2-GPT4-train.txt`, `TinyStoriesV2-GPT4-valid.txt` and `owt_valid.txt` have been used to validate, and all passed. `owt_train.txt` didn't finish because it used more than 32G of RAM, which led to a crash due to lack of RAM.
+
+There are a few changes to improve the efficiency:
+
+1. Enables JIT (just-in-time) for libpcre2. Before adopting JIT, it took more than 80min to pretokenize `owt_train.txt` on my 5800x desktop (even with multithreading enabled). With JIT, it only took about 100s (39s in `release` profile) to parse 6601892 unique tokens (2471753092 tokens in total).
+2. Uses vectors of tuples of `(token, count)` instead of rebuilding hashmaps, because we already have unique tokens, no need to do extra hashing during each iteration of training.
+3. Uses incremental pair counting by tracking the numbers of pairs to be removed and the numbers of pairs to be added, instead of counting every byte pair after a merge.
+4. Uses `u32` to pack pairs of token ids for hashing.
+5. Better hashmap operations, e.g. to remove an element immediately when its counting reaches 0, instead of filtering through all keys after all changes, to use one hashmap when possible, instead of merging multiple hashmaps.
+6. Avoid using owned `Vec<u8>` as key of hashmaps, borrows `&[u8]` to reduce buffer copying.

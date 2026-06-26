@@ -1,0 +1,3 @@
+from collections.abc import Sequence
+from os import PathLike
+def bpe(input_path: str |PathLike[str], vocab_size: int, special_tokens: Sequence[str]) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]: ...

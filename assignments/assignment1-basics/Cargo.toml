@@ -1,0 +1,12 @@
+[package]
+name = "cs336_basics_rs"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "cs336_basics"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.29.0", features = ["experimental-inspect"] }
+cs336_rs = { git = "https://github.com/IronBlood/cs336-rs", rev = "bf5ce8f8adaddaa091f91974e494760c3948c290" }
