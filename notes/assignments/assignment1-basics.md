@@ -165,3 +165,140 @@ There are a few changes to improve the efficiency:
 4. Uses `u32` to pack pairs of token ids for hashing.
 5. Better hashmap operations, e.g. to remove an element immediately when its counting reaches 0, instead of filtering through all keys after all changes, to use one hashmap when possible, instead of merging multiple hashmaps.
 6. Avoid using owned `Vec<u8>` as key of hashmaps, borrows `&[u8]` to reduce buffer copying.
+
+## Problem train_bpe_tinystories
+
+> (a) Train a byte-level BPE tokenizer on the TinyStories dataset, using a maximum vocabulary
+> size of 10,000. Make sure to add the TinyStories <|endoftext|> special token to the vocabulary.
+> Serialize the resulting vocabulary and merges to disk for further inspection. How much time
+> and memory did training take? What is the longest token in the vocabulary? Does it make sense?
+
+Resource usage was recorded with [GNU `time`](https://www.gnu.org/software/time/). The initial script didn't serialize the vocabulary and merges.
+
+|                | Duration                | RAM      |
+| :------------- | :---------------------- | :------- |
+| Requirement    | <= 30 minutes (no GPUs) | <= 30 GB |
+| Implementation | 8.88 seconds            | 2271 MB  |
+
+The longest token (encoded) in the vocabulary is `Ġaccomplishment`.
+
+**RAW DATA**:
+
+```
+Command being timed: "uv run -m cs336_basics.bpe data/TinyStoriesV2-GPT4-train.txt 10000"
+User time (seconds): 71.26
+System time (seconds): 4.14
+Percent of CPU this job got: 848%
+Elapsed (wall clock) time (h:mm:ss or m:ss): 0:08.88
+Average shared text size (kbytes): 0
+Average unshared data size (kbytes): 0
+Average stack size (kbytes): 0
+Average total size (kbytes): 0
+Maximum resident set size (kbytes): 2271388
+Average resident set size (kbytes): 0
+Major (requiring I/O) page faults: 0
+Minor (reclaiming a frame) page faults: 27759
+Voluntary context switches: 38802
+Involuntary context switches: 18204
+Swaps: 0
+File system inputs: 4351080
+File system outputs: 0
+Socket messages sent: 0
+Socket messages received: 0
+Signals delivered: 0
+Page size (bytes): 4096
+Exit status: 0
+```
+
+> (b) Profile your code. What part of the tokenizer training process takes the most time?
+
+The profiling script is implemented in Rust [profile_bpe.rs](https://github.com/IronBlood/cs336-rs/blob/main/src/bin/profile_bpe.rs). To run this script, using:
+
+```bash
+cargo run --release --features profile-bpe --bin profile_bpe -- /path/to/TinyStoriesV2-GPT4-train.txt 10000
+```
+
+The argument `--release` is optional. With it, here is the time cost:
+
+```
+read file: 0.790s
+find boundaries: 0.000s
+find spans: 0.128s
+span sort: 0.000s
+flatten spans: 0.011s
+build freq map: 4.221s
+convert freq map: 0.005s
+------
+init pair counting: 0.001s
+largest pair: 0.750s
+replace: 3.052s
+patch pair counting: 0.017s
+------
+train bpe: 3.829s
+build vocab: 0.000s
+```
+
+Without it:
+
+```
+read file: 0.983s
+find boundaries: 0.000s
+find spans: 0.141s
+span sort: 0.000s
+flatten spans: 0.064s
+build freq map: 18.376s
+convert freq map: 0.033s
+------
+init pair counting: 0.014s
+largest pair: 9.598s
+replace: 11.562s
+patch pair counting: 0.184s
+------
+train bpe: 21.389s
+build vocab: 0.005s
+```
+
+Most of the time is spent on merging: 80% for the optimized version and 54% for the unoptimized version.
+
+## Problem train_bpe_expts_owt
+
+> (a) Train a byte-level BPE tokenizer on the OpenWebText dataset, using a maximum vocabulary
+> size of 32,000. Serialize the resulting vocabulary and merges to disk for further inspection.
+> What is the longest token in the vocabulary? Does it make sense?
+
+Recorded with `time` as well (no serialization).
+
+|                | Duration                | RAM       |
+| :------------- | :---------------------- | :-------- |
+| Requirement    | <= 12 hours (no GPUs)   | <= 100 GB |
+| Implementation | 31 minutes              | 12.7 GB   |
+
+The longest token (encoded) in the vocabulary is `ÃƃÃƂÃƃÃƂÃƃÃƂÃƃÃƂÃƃÃƂÃƃÃƂÃƃÃƂÃƃÃƂÃƃÃƂÃƃÃƂÃƃÃƂÃƃÃƂÃƃÃƂÃƃÃƂÃƃÃƂÃƃÃƂ`, decoded as `\xC3\x82\xC3\x83`, it doesn't make sense.
+
+**RAW DATA**:
+
+```
+Command being timed: "uv run -m cs336_basics.bpe data/owt_train.txt 32000"
+User time (seconds): 21973.87
+System time (seconds): 50.95
+Percent of CPU this job got: 1180%
+Elapsed (wall clock) time (h:mm:ss or m:ss): 31:05.72
+Average shared text size (kbytes): 0
+Average unshared data size (kbytes): 0
+Average stack size (kbytes): 0
+Average total size (kbytes): 0
+Maximum resident set size (kbytes): 12720444
+Average resident set size (kbytes): 0
+Major (requiring I/O) page faults: 35
+Minor (reclaiming a frame) page faults: 2476424
+Voluntary context switches: 144704
+Involuntary context switches: 5160125
+Swaps: 0
+File system inputs: 21824440
+File system outputs: 0
+Socket messages sent: 0
+Socket messages received: 0
+Signals delivered: 0
+Page size (bytes): 4096
+Exit status: 0
+```
