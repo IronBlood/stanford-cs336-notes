@@ -13,7 +13,7 @@ dependencies = [
 [[package]]
 name = "cs336_rs"
 version = "0.1.0"
-source = "git+https://github.com/IronBlood/cs336-rs?rev=bf5ce8f8adaddaa091f91974e494760c3948c290#bf5ce8f8adaddaa091f91974e494760c3948c290"
+source = "git+https://github.com/IronBlood/cs336-rs?rev=0e12b7b24633175923946756768bd06bc7473937#0e12b7b24633175923946756768bd06bc7473937"
 
 [[package]]
 name = "heck"
