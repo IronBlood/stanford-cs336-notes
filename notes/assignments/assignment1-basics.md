@@ -302,3 +302,12 @@ Signals delivered: 0
 Page size (bytes): 4096
 Exit status: 0
 ```
+
+> NOTE: for the task `train_bpe_expts_owt` or maybe even `train_bpe_tinystories`, my implementation loads the full text into the RAM because my desktop has 64GB RAM, this might not work on your system, especially the first one (12G). However it's possible to split the process into different isolated stages to avoid heavy RAM use:
+>
+> - Have a script to save the spans to a file.
+> - Have a script which reads only one span into RAM, builds the freq map, and serialize to a file. This process can be executed in parallel.
+> - Have another script to read each serialized freq map, deserialize and then merge into one final freq map. This is like the reducer.
+> - Have the final script which loads the final freq map, then do BPE training.
+>
+> The serialized freq map for `owt_train.txt` might be just 100+ MB.
