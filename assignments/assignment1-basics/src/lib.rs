@@ -5,7 +5,7 @@ mod cs336_basics {
     use cs336_rs::{
         file::{write_merges, write_vocab},
         utils::{
-            BpeTrainingResult, Span, build_token_freq_map, convert_freq_map_to_u16,
+            BpeTrainingResult, build_token_freq_map, convert_freq_map_to_u16,
             find_chunk_boundaries, find_pretoken_spans, train_bpe,
         },
     };
@@ -33,7 +33,7 @@ mod cs336_basics {
         let gpt2_regex_str =
             r"'(?:[sdmt]|ll|ve|re)| ?\p{L}++| ?\p{N}++| ?[^\s\p{L}\p{N}]++|\s++$|\s+(?!\S)|\s";
 
-        let all_pieces: Vec<Span> = spans.into_iter().flatten().collect();
+        let all_pieces: Vec<_> = spans.into_iter().flatten().collect();
         let freq_map = build_token_freq_map(&content, &all_pieces, cpus, &gpt2_regex_str)
             .expect("should succeed");
 

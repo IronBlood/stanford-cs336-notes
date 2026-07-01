@@ -9,4 +9,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pyo3 = { version = "0.29.0", features = ["experimental-inspect"] }
-cs336_rs = { git = "https://github.com/IronBlood/cs336-rs", rev = "0e12b7b24633175923946756768bd06bc7473937" }
+cs336_rs = { git = "https://github.com/IronBlood/cs336-rs", rev = "cb28599200cfffdb33d305e3d542845dee9edd4a" }
