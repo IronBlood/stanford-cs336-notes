@@ -316,10 +316,62 @@ Exit status: 0
 
 The implementation lives in the native implementation: [tokenizer.rs](https://github.com/IronBlood/cs336-rs/blob/main/src/tokenizer.rs). This note only records the Python-facing behavior and test status.
 
-The PyO3 layer exposes a `Tokenizer` class which acts as the bridge of Python and the native implementation.
+The PyO3 layer exposes a `Tokenizer` class which acts as the bridge between Python and the native implementation.
 
 Local test changes in [test_tokenizer.py](../../assignments/assignment1-basics/tests/test_tokenizer.py):
 
-- The three `.encode_iterable` tests are skipped because it is not implemented yet.
+- The three `.encode_iterable` tests are skipped because `.encode_iterable` is not implemented yet.
 - `test_roundtrip_unicode_string_with_special_tokens` is skipped because per-token decoding is not fully supported yet. Some individual token IDs may decode to byte sequences that are not valid UTF-8 by themselves.
 - The expectation of `test_overlapping_special_tokens` is changed to match the reference (OpenAI's `tiktoken`) behavior. The double special token is not preserved as one token.
+
+## Problem tokenizer_experiments
+
+The implementation lives in [tokenize_samples.rs](https://github.com/IronBlood/cs336-rs/blob/94a4c5c41583282328645445ec807f6c85ddc793/src/bin/tokenize_samples.rs). Usage:
+
+```bash
+cargo run --release --bin tokenize_samples /path/to/TinyStoriesV2-GPT4-valid.txt \
+  --vocab /path/to/TinyStoriesV2-GPT4.vocab.txt \
+  --merges /path/to/TinyStoriesV2-GPT4.merges.txt
+```
+
+> (a) Sample 10 documents from TinyStories and OpenWebText. Using your previously-trained
+> TinyStories and OpenWebText tokenizers (10K and 32K vocabulary size, respectively),
+> encode these sampled documents into integer IDs. What is each tokenizer’s compression ratio
+> (bytes/token)?
+
+Using the first 10 documents from the valid datasets of TinyStories and OpenWebText. The ratios are:
+
+- TinyStories: 4.011 (4.059 with the first 100 documents)
+- OpenWebText: 4.505 (4.445 with the first 100 documents)
+
+> (b) What happens if you tokenize your OpenWebText sample with the TinyStories tokenizer?
+> Compare the compression ratio and/or qualitatively describe what happens.
+
+Switching tokenizers gives lower compression ratios:
+
+- TinyStories documents encoded with OpenWebText tokenizer: 3.867
+- OpenWebText documents encoded with TinyStories tokenizer: 3.405
+
+Since a higher bytes/token ratio means better compression, both tokenizers become less efficient when used on data from the other distribution. The drop is larger for OpenWebText with the TinyStories tokenizer, which makes sense: TinyStories is simpler and narrower, while OpenWebText contains more diverse web text, punctuation, formatting, names, and unusual strings.
+
+> (c) Estimate the throughput of your tokenizer (e.g., in bytes/second). How long would it take to
+> tokenize the Pile dataset (825GB of text)?
+
+With a single thread for encoding, the throughputs are:
+
+- TinyStories: `16728673.580 bytes/s`
+- OpenWebText: `14526728.345 bytes/s`
+
+If the encoding runs at `14 MB/s`, it takes about **16** hours to encode the Pile dataset.
+
+**NOTE**: I also tried two parallel encoding experiments, with and without caching. They are not faster for encoding, and even worse for TinyStories. Probably for a few reasons:
+
+- Each document is not long enough, so it doesn't really help to split tokens and encode them in multiple threads.
+- Pre-tokenized pieces are usually short enough, for example ` the`, ` a` and `.`. It takes extra time to build the cache and compute hashes for cache keys.
+
+> (d) Using your TinyStories and OpenWebText tokenizers, encode the respective training and
+> development datasets into a sequence of integer token IDs. We’ll use this later to train our
+> language model. We recommend serializing the token IDs as a NumPy array of datatype
+> `uint16`. Why is `uint16` an appropriate choice?
+
+Because the vocabulary size is at most 32,000, so every token ID fits in 16-bits. `uint32` and `uint64` would also work, but they would use more memory without adding value for this vocabulary size. `uint16` works when the vocabulary size is `<= 65536`. For larger vocabularies, like `100k` or `200k`, `uint32` is needed.
