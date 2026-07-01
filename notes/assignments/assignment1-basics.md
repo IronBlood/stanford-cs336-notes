@@ -311,3 +311,15 @@ Exit status: 0
 > - Have the final script which loads the final freq map, then do BPE training.
 >
 > The serialized freq map for `owt_train.txt` might be just 100+ MB.
+
+## Problem tokenizer
+
+The implementation lives in the native implementation: [tokenizer.rs](https://github.com/IronBlood/cs336-rs/blob/main/src/tokenizer.rs). This note only records the Python-facing behavior and test status.
+
+The PyO3 layer exposes a `Tokenizer` class which acts as the bridge of Python and the native implementation.
+
+Local test changes in [test_tokenizer.py](../../assignments/assignment1-basics/tests/test_tokenizer.py):
+
+- The three `.encode_iterable` tests are skipped because it is not implemented yet.
+- `test_roundtrip_unicode_string_with_special_tokens` is skipped because per-token decoding is not fully supported yet. Some individual token IDs may decode to byte sequences that are not valid UTF-8 by themselves.
+- The expectation of `test_overlapping_special_tokens` is changed to match the reference (OpenAI's `tiktoken`) behavior. The double special token is not preserved as one token.

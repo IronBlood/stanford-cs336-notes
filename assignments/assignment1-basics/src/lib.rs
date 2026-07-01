@@ -4,12 +4,13 @@ mod cs336_basics {
 
     use cs336_rs::{
         file::{write_merges, write_vocab},
+        tokenizer::Tokenizer,
         utils::{
             BpeTrainingResult, build_token_freq_map, convert_freq_map_to_u16,
             find_chunk_boundaries, find_pretoken_spans, train_bpe,
         },
     };
-    use pyo3::prelude::*;
+    use pyo3::{prelude::*, pymethods};
 
     type BpeTrainingResultVocab = HashMap<usize, Vec<u8>>;
     type BpeTrainingResultMerges = Vec<(Vec<u8>, Vec<u8>)>;
@@ -74,5 +75,36 @@ mod cs336_basics {
         let result = bpe_internal(&input_path, vocab_size, &special_tokens);
         write_vocab(&vocab_path, &result.vocab);
         write_merges(&merges_path, &result.merges);
+    }
+
+    #[pyclass(name = "Tokenizer")]
+    struct PyTokenizer {
+        inner: Tokenizer,
+    }
+
+    #[pymethods]
+    impl PyTokenizer {
+        #[new]
+        #[pyo3(signature = (vocab: "dict[int, bytes]", merges: "list[tuple[bytes, bytes]]", special_tokens: "list[str] | None") -> "Tokenizer")]
+        fn new(
+            vocab: HashMap<u16, Vec<u8>>,
+            merges: Vec<(Vec<u8>, Vec<u8>)>,
+            special_tokens: Option<Vec<String>>,
+        ) -> PyResult<Self> {
+            let gpt2_regex_str =
+                r"'(?:[sdmt]|ll|ve|re)| ?\p{L}++| ?\p{N}++| ?[^\s\p{L}\p{N}]++|\s++$|\s+(?!\S)|\s";
+            let inner =
+                Tokenizer::load_course(vocab, merges, special_tokens.as_deref(), gpt2_regex_str)
+                    .expect("should build a tokenizer");
+            Ok(PyTokenizer { inner })
+        }
+
+        fn encode(&self, text: String) -> Vec<u16> {
+            self.inner.encode(&text).expect("input is not valid")
+        }
+
+        fn decode(&self, ids: Vec<u16>) -> String {
+            self.inner.decode(&ids)
+        }
     }
 }
