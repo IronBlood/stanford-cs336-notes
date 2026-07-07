@@ -5,8 +5,10 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "einops>=0.8.2",
     "numpy>=2.4.6",
     "pandas>=3.0.3",
+    "pillow>=12.3.0",
     "pyarrow>=24.0.0",
     "regex>=2026.3.32",
     "torch>=2.12.0",
