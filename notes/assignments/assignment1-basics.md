@@ -1,18 +1,19 @@
 # Assignment 1: Basics
 
-## Problem unicode1a
+## Chapter 2
+### Problem unicode1a
 
 > What Unicode character does `chr(0)` return?
 
 It returns `U+0000`, the null character.
 
-## Problem unicode1b
+### Problem unicode1b
 
 > How does this character's string representation `(__repr__())` differ from its printed representation?
 
 `print` writes the actual character to stdout. Since `U+0000` is not printable, the terminal usually shows no visible glyph for it. `repr()` returns a debugging representation of the string, so it escapes the null character as `\x00`.
 
-## Problem unicode1c
+### Problem unicode1c
 
 > What happens when this character occurs in text? It may be helpful to play around with the following in your Python intepreter and see if it  matches your expectations:
 >
@@ -25,7 +26,7 @@ It returns `U+0000`, the null character.
 
 The character is inserted in the string as-is. Python does not treat it as a terminator as in C. It remains part of the string even though it is usually invisible when printed.
 
-## Problem unicode2a
+### Problem unicode2a
 
 > What are some reasons to prefer training out tokenizer on UTF-8 encoded bytes, rather than UTF-16 or UTF-32? It may be helpful to compare the output of these encodings for various input strings.
 
@@ -33,7 +34,7 @@ Short answer:
 
 UTF-8 is prefered because it is the dominant text encoding on the web and it's compact while still being able to represent all Unicode characters. UTF-16 and UTF-32 often introduce extra zero bytes or longer byte sequences for the same text, which makes byte-level tokenization less efficient and wastes tokenizer capacity on encoding artifacts.
 
-## Problem unicode2b
+### Problem unicode2b
 
 > Consider the following (incorrect) function, which is intended to decode a UTF-8 byte string into a Unicode string. Why is this function incorrect? Provide an example of an input byte string that yields incorrect results.
 >
@@ -45,13 +46,13 @@ UTF-8 is prefered because it is the dominant text encoding on the web and it's c
 
 The function tries to decode byte by byte. It works for the example input, which are bytes for `"hello"`. Each character also falls into the ASCII code, which is compatible with UTF-8. However there are characters, for example Chinese, Japanese, or `é` which require multiple bytes, decoding byte by byte will fail.
 
-## Problem unicode2c
+### Problem unicode2c
 
 > Give a two-byte sequence that does not decode to any Unicode character(s).
 
 `b"\xFF\xFF"` does not decode to any Unicode character(s).
 
-## Problem train_bpe
+### Problem train_bpe
 
 > Write a function that, given a path to an input text file, trains a (byte-level) BPE
 > tokenizer. Your BPE training function should handle (at least) the following input parameters:
@@ -71,7 +72,7 @@ The function tries to decode byte by byte. It works for the example input, which
 >
 > To test your BPE training function against our provided tests, you will first need to implement the test adapter at `adapters.run_train_bpe`. Then, run `uv run pytest tests/test_train_bpe.py`. Your implementation should be able to pass all tests. Optionally (this could be a large time-investment), you can implement the key parts of your training method using some systems language, for instance C++ (consider `cppyy` or `nanobind`) or Rust (using `PyO3`). If you do this, be aware of which operations require copying vs reading directly from Python memory, and make sure to leave build instructions, or make sure it builds using only `pyproject.toml`. Also note that the GPT-2 regex is not well-supported in most regex engines and will be too slow in most that do. We have verified that Oniguruma is reasonably fast and supports negative lookahead, but the regex package in Python is, if anything, even faster.
 
-### Notes for `pretokenization_example.py`
+#### Notes for `pretokenization_example.py`
 
 The example in [pretokenization_example.py](../../assignments/assignment1-basics/cs336_basics/pretokenization_example.py) divides a file into smaller chunks whose boundaries are aligned with a special token:
 
@@ -81,7 +82,7 @@ The example in [pretokenization_example.py](../../assignments/assignment1-basics
 4. It removes duplicate boundaries and pairs adjacent boundaries to define the byte range of each chunk.
 5. It reads each range as bytes and then decodes it as UTF-8 for pre-tokenization. Because a boundary points to the first byte of a special token, that token begins the following chunk.
 
-### Implementation and Test Results
+#### Implementation and Test Results
 
 The whole implementation contains three layers:
 
@@ -93,7 +94,7 @@ All three tests passed. With `dev` profile (unoptimized + debuginfo), `test_trai
 
 > NOTE: The reference implementation takes 0.38s on the lecturer's laptop, and the test requires the runtime to be finished within 1.5s. The [first bug-fixed Rust implementation](https://github.com/IronBlood/cs336-rs/commit/550e15058dd7ea2ed263ea1487dd3a7e26fac145) takes about 2s with `dev` profile, 0.2s with `release` profile.
 
-### Why Rust is Used
+#### Why Rust is Used
 
 BPE tokenizer training doesn't invoke any PyTorch operations, it is pure string and byte level operations. The tokenizer will later be used on the TinyStories dataset and the OpenWebText dataset. The OpenWebText dataset is about 12G, while the TinyStories dataset is smaller, but still 2.2G. String is a built-in type in Python. When doing string operations, such as `text[start:end]` and `text.split(",")`, new string objects are created, and extra spaces are allocated to store the copied data.
 
@@ -105,7 +106,7 @@ Rust, on the other hand, is more flexible. Bytes can be store as `Vec<u8>`, and 
 
 So the Python layer and PyO3 layer are very thin, the heavy work is done in the Rust layer.
 
-### Key Data Types
+#### Key Data Types
 
 There are a few aliases used to make the raw data type meaningful:
 
@@ -114,17 +115,17 @@ There are a few aliases used to make the raw data type meaningful:
 - `TokenIds` (`Vec<u16>`): After the pre-tokenization, the raw `TokenBytes` will be converted to `TokenIds` for training.
 - `PackedPair` (`u32`): During the training, byte pairs, in fact pairs of token ids, will be counted, a `HashMap` will be used. We can use an array `[u16; 2]` or a tuple `(u16, u16)`, because the `std::collections::HashMap` accepts multiple types as keys in a hash map, as long as these types implement both the `Eq` and `Hash` traits. However these types are less efficient for hashing, and luckily, two 16-bit integers can be grouped as a 32-bit integer easily with bitwise operations, the same as unpacked from a 32-bit integer.
 
-### High-Level Overview
+#### High-Level Overview
 
 The Rust native code is designed and implemented with efficiency in mind.
 
-#### Multi-threading
+##### Multi-threading
 
 There are multiple steps during the whole process with similar situation: a group of data needs to be handled with the same process individually. This is very ideal for multi-threading. The main thread splits the group into non-overlapping chunks, each chunk is handled by a thread, each thread collects data, then the main thread merges these data.
 
 > NOTE: Python also provides parallelism, in fact there are two concepts, multithreading vs multiprocessing. However due to the GIL (Global Interpreter Lock), standard CPython (before 3.14) limits CPU-bound multithreading (e.g. string processing), it's suitable for IO-related jobs. Multiprocessing suits this case, but it spawns new processes on the running system, and IPC (inter-process communication) is expensive. Keep this in mind if you are going to use parallelism in pure Python.
 
-#### Regular Expression Engine
+##### Regular Expression Engine
 
 Regular expressions in this assignment are used for two situations:
 
@@ -144,7 +145,7 @@ The widely used crate [`regex`](https://github.com/rust-lang/regex) isn't used a
 
 There is a wrapper [rust-pcre2](https://github.com/BurntSushi/rust-pcre2), but since there are not many APIs to be wrapped for this project, for educational purpose, a thin AI-made layer is used. Checkout [ffi.rs](https://github.com/IronBlood/cs336-rs/blob/main/src/ffi.rs).
 
-#### The Flow
+##### The Flow
 
 This section only talks the flow in the Rust layer, checkout [profile_bpe.rs](https://github.com/IronBlood/cs336-rs/blob/main/src/bin/profile_bpe.rs) to see the complete flow.
 
@@ -153,7 +154,7 @@ This section only talks the flow in the Rust layer, checkout [profile_bpe.rs](ht
 3. `build_token_freq_map` uses the GPT2 pretokenization regular expression to find what original tokens need to be trained and how many of each of the tokens.
 4. `train_bpe` deals with byte pairs, merges and builds the vocabulary.
 
-### Validations and Optimizations
+#### Validations and Optimizations
 
 [verify.py](../../assignments/assignment1-basics/verify.py) is a naive implementation to validate the correctness of the Rust pretokenization. There is a binary in the Rust implementation which serialize the tokens (before training) and counts to a TSV format file, and this python script parses in an unoptimized approach, deserialize the TSV file, and compare the keys and counts. `TinyStoriesV2-GPT4-train.txt`, `TinyStoriesV2-GPT4-valid.txt` and `owt_valid.txt` have been used to validate, and all passed. `owt_train.txt` didn't finish because it used more than 32G of RAM, which led to a crash due to lack of RAM.
 
@@ -166,7 +167,7 @@ There are a few changes to improve the efficiency:
 5. Better hashmap operations, e.g. to remove an element immediately when its counting reaches 0, instead of filtering through all keys after all changes, to use one hashmap when possible, instead of merging multiple hashmaps.
 6. Avoid using owned `Vec<u8>` as key of hashmaps, borrows `&[u8]` to reduce buffer copying.
 
-## Problem train_bpe_tinystories
+### Problem train_bpe_tinystories
 
 > (a) Train a byte-level BPE tokenizer on the TinyStories dataset, using a maximum vocabulary
 > size of 10,000. Make sure to add the TinyStories <|endoftext|> special token to the vocabulary.
@@ -260,7 +261,7 @@ build vocab: 0.005s
 
 Most of the time is spent on merging: 80% for the optimized version and 54% for the unoptimized version.
 
-## Problem train_bpe_expts_owt
+### Problem train_bpe_expts_owt
 
 > (a) Train a byte-level BPE tokenizer on the OpenWebText dataset, using a maximum vocabulary
 > size of 32,000. Serialize the resulting vocabulary and merges to disk for further inspection.
@@ -312,7 +313,7 @@ Exit status: 0
 >
 > The serialized freq map for `owt_train.txt` might be just 100+ MB.
 
-## Problem tokenizer
+### Problem tokenizer
 
 The implementation lives in the native implementation: [tokenizer.rs](https://github.com/IronBlood/cs336-rs/blob/main/src/tokenizer.rs). This note only records the Python-facing behavior and test status.
 
@@ -324,7 +325,7 @@ Local test changes in [test_tokenizer.py](../../assignments/assignment1-basics/t
 - `test_roundtrip_unicode_string_with_special_tokens` is skipped because per-token decoding is not fully supported yet. Some individual token IDs may decode to byte sequences that are not valid UTF-8 by themselves.
 - The expectation of `test_overlapping_special_tokens` is changed to match the reference (OpenAI's `tiktoken`) behavior. The double special token is not preserved as one token.
 
-## Problem tokenizer_experiments
+### Problem tokenizer_experiments
 
 The implementation lives in [tokenize_samples.rs](https://github.com/IronBlood/cs336-rs/blob/94a4c5c41583282328645445ec807f6c85ddc793/src/bin/tokenize_samples.rs). Usage:
 
