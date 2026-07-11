@@ -376,3 +376,39 @@ If the encoding runs at `14 MB/s`, it takes about **16** hours to encode the Pil
 > `uint16`. Why is `uint16` an appropriate choice?
 
 Because the vocabulary size is at most 32,000, so every token ID fits in 16-bits. `uint32` and `uint64` would also work, but they would use more memory without adding value for this vocabulary size. `uint16` works when the vocabulary size is `<= 65536`. For larger vocabularies, like `100k` or `200k`, `uint32` is needed.
+
+## Chapter 3
+
+In this section unit tests are splitted to different problems in different files, so `uv run pytest -k` is used.
+
+[test_model.py](../../assignments/assignment1-basics/tests/test_model.py) contains:
+
+- `test_linear`
+- `test_embedding`
+- `test_rmsnorm`
+- `test_swiglu`
+- `test_rope`
+- `test_4d_scaled_dot_product_attention`
+- `test_multihead_self_attention`
+- `test_transformer_block`
+- `test_transformer_lm`
+
+[test_nn_utils.py](../../assignments/assignment1-basics/tests/test_nn_utils.py) contains:
+
+- `test_softmax_matches_pytorch`
+
+Tests in `test_model.py` share the same pattern: arguments are stored in a cofiguration file [conftest.py](../../assignments/assignment1-basics/tests/conftest.py). Here are the values or explanations:
+
+- `snapshot`: an instance of `NumpySnapshot`, which loads the actual snapshot file saved on filesystem via [`pickle.load(f)`](https://docs.python.org/3/library/pickle.html).
+- `ts_state_dict`: loads `model.pt` (via `torch.load()` and then converted to a dictionary) and `model_config.json` (via `json.load()`), and then returns them as a tuple.
+- `batch_size`: 4
+- `n_queries`: 12
+- `n_heads`: 4
+- `d_head`: 16
+- `d_model`: 64 (`n_heads * d_head`)
+- `in_embeddings`: first calls `torch.manual_seed(4)`, then returns `torch.randn(batch_size, n_queries, d_model)`.
+- `d_ff`: 128
+
+### Problem `linear`
+
+This is related to `test_linear`. It loads `layers.0.ffn.w1.weight` from the dictionary returned from `ts_state_dict`, and then call `run_linear()` (which is inside `adapters.py`).
