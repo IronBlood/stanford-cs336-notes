@@ -375,11 +375,11 @@ If the encoding runs at `14 MB/s`, it takes about **16** hours to encode the Pil
 > language model. We recommend serializing the token IDs as a NumPy array of datatype
 > `uint16`. Why is `uint16` an appropriate choice?
 
-Because the vocabulary size is at most 32,000, so every token ID fits in 16-bits. `uint32` and `uint64` would also work, but they would use more memory without adding value for this vocabulary size. `uint16` works when the vocabulary size is `<= 65536`. For larger vocabularies, like `100k` or `200k`, `uint32` is needed.
+Because the vocabulary size is at most 32,000, so every token ID fits in 16 bits. `uint32` and `uint64` would also work, but they would use more memory without adding value for this vocabulary size. `uint16` works when the vocabulary size is `<= 65536`. For larger vocabularies, like `100k` or `200k`, `uint32` is needed.
 
 ## Chapter 3
 
-In this section unit tests are splitted to different problems in different files, so `uv run pytest -k` is used.
+In this section unit tests are split to different problems in different files, so `uv run pytest -k` is used.
 
 [test_model.py](../../assignments/assignment1-basics/tests/test_model.py) contains:
 
@@ -397,7 +397,7 @@ In this section unit tests are splitted to different problems in different files
 
 - `test_softmax_matches_pytorch`
 
-Tests in `test_model.py` share the same pattern: arguments are stored in a cofiguration file [conftest.py](../../assignments/assignment1-basics/tests/conftest.py). Here are the values or explanations:
+Tests in `test_model.py` share the same pattern: arguments are stored in a configuration file [conftest.py](../../assignments/assignment1-basics/tests/conftest.py). Here are the values or explanations:
 
 - `snapshot`: an instance of `NumpySnapshot`, which loads the actual snapshot file saved on filesystem via [`pickle.load(f)`](https://docs.python.org/3/library/pickle.html).
 - `ts_state_dict`: loads `model.pt` (via `torch.load()` and then converted to a dictionary) and `model_config.json` (via `json.load()`), and then returns them as a tuple.
