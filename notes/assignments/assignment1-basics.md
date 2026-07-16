@@ -399,7 +399,8 @@ In this section unit tests are split to different problems in different files, s
 
 Tests in `test_model.py` share the same pattern: arguments are stored in a configuration file [conftest.py](../../assignments/assignment1-basics/tests/conftest.py). Here are the values or explanations:
 
-- `snapshot`: an instance of `NumpySnapshot`, which loads the actual snapshot file saved on filesystem via [`pickle.load(f)`](https://docs.python.org/3/library/pickle.html).
+- `numpy_snapshot`: an instance of `NumpySnapshot`, which loads the actual snapshot file saved on filesystem via [`numpy.load()`](https://numpy.org/devdocs/reference/generated/numpy.load.html).
+- `snapshot`: an instance of `Snapshot`, which loads the actual snapshot file saved on filesystem via [`pickle.load(f)`](https://docs.python.org/3/library/pickle.html).
 - `ts_state_dict`: loads `model.pt` (via `torch.load()` and then converted to a dictionary) and `model_config.json` (via `json.load()`), and then returns them as a tuple.
 - `batch_size`: 4
 - `n_queries`: 12
@@ -411,4 +412,33 @@ Tests in `test_model.py` share the same pattern: arguments are stored in a confi
 
 ### Problem `linear`
 
-This is related to `test_linear`. It loads `layers.0.ffn.w1.weight` from the dictionary returned from `ts_state_dict`, and then call `run_linear()` (which is inside `adapters.py`).
+This is related to `test_linear`. It loads `layers.0.ffn.w1.weight` from the dictionary returned from `ts_state_dict`, and then calls `run_linear()` (which is inside `adapters.py`).
+
+> Deliverable: Implement a Linear class that inherits from `torch.nn.Module` and performs a linear
+> transformation. Your implementation should follow the interface of PyTorch’s built-in `nn.Linear`
+> module, except for not having a `bias` argument or parameter. We recommend the following interface:
+>
+> ```py
+> # Construct a linear transformation module.
+> def __init__(self, in_features, out_features, device=None, dtype=None):
+> # Apply the linear transformation to the input.
+> def forward(self, x: torch.Tensor) -> torch.Tensor:
+> ```
+>
+> Make sure to:
+>
+> * subclass `nn.Module`
+> * call the superclass constructor
+> * construct and store your parameter as `W` (not `W^T`), putting it in an `nn.Parameter`
+> * of course, don’t use `nn.Linear` or `nn.functional.linear`
+>
+> For initializations, use the settings from above along with `torch.nn.init.trunc_normal_` to
+> initialize the weights.
+>
+> To test your Linear module, implement the test adapter at `[adapters.run_linear]`. The adapter
+> should load the given weights into your `Linear` module. You can use `Module.load_state_dict` for
+> this purpose. Then, run `uv run pytest -k test_linear`.
+
+- Source code [nn.py](../../assignments/assignment1-basics/cs336_basics/nn.py)
+- Reference [cs336_basics/nn_utils.py @ DhyeyMavani2003/stanford-cs336-assignment1-basics-solution](https://github.com/DhyeyMavani2003/stanford-cs336-assignment1-basics-solution/blob/main/cs336_basics/nn_utils.py)
+- PyTorch explanations [torch.md](../tools/torch.md)
