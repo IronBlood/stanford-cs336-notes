@@ -397,48 +397,187 @@ In this section unit tests are split to different problems in different files, s
 
 - `test_softmax_matches_pytorch`
 
-Tests in `test_model.py` share the same pattern: arguments are stored in a configuration file [conftest.py](../../assignments/assignment1-basics/tests/conftest.py). Here are the values or explanations:
+Implementation is stored in [nn.py](../../assignments/assignment1-basics/cs336_basics/nn.py) and [nn_utils.py](../../assignments/assignment1-basics/cs336_basics/nn_utils.py). Also see PyTorch explanations [torch.md](../tools/torch.md).
 
-- `numpy_snapshot`: an instance of `NumpySnapshot`, which loads the actual snapshot file saved on filesystem via [`numpy.load()`](https://numpy.org/devdocs/reference/generated/numpy.load.html).
-- `snapshot`: an instance of `Snapshot`, which loads the actual snapshot file saved on filesystem via [`pickle.load(f)`](https://docs.python.org/3/library/pickle.html).
-- `ts_state_dict`: loads `model.pt` (via `torch.load()` and then converted to a dictionary) and `model_config.json` (via `json.load()`), and then returns them as a tuple.
-- `batch_size`: 4
-- `n_queries`: 12
-- `n_heads`: 4
-- `d_head`: 16
-- `d_model`: 64 (`n_heads * d_head`)
-- `in_embeddings`: first calls `torch.manual_seed(4)`, then returns `torch.randn(batch_size, n_queries, d_model)`.
-- `d_ff`: 128
+### Linear, Embedding, and RMSNorm
 
-### Problem `linear`
+These three classes are the fundamental block, and they share the same pattern:
 
-This is related to `test_linear`. It loads `layers.0.ffn.w1.weight` from the dictionary returned from `ts_state_dict`, and then calls `run_linear()` (which is inside `adapters.py`).
+```py
+class Foo(torch.nn.Module):
+    def __init__(self, args):
+        super().__init__()
+        self.weight = torch.nn.Parameter(tensor)
+```
 
-> Deliverable: Implement a Linear class that inherits from `torch.nn.Module` and performs a linear
-> transformation. Your implementation should follow the interface of PyTorch’s built-in `nn.Linear`
-> module, except for not having a `bias` argument or parameter. We recommend the following interface:
->
-> ```py
-> # Construct a linear transformation module.
-> def __init__(self, in_features, out_features, device=None, dtype=None):
-> # Apply the linear transformation to the input.
-> def forward(self, x: torch.Tensor) -> torch.Tensor:
-> ```
->
-> Make sure to:
->
-> * subclass `nn.Module`
-> * call the superclass constructor
-> * construct and store your parameter as `W` (not `W^T`), putting it in an `nn.Parameter`
-> * of course, don’t use `nn.Linear` or `nn.functional.linear`
->
-> For initializations, use the settings from above along with `torch.nn.init.trunc_normal_` to
-> initialize the weights.
->
-> To test your Linear module, implement the test adapter at `[adapters.run_linear]`. The adapter
-> should load the given weights into your `Linear` module. You can use `Module.load_state_dict` for
-> this purpose. Then, run `uv run pytest -k test_linear`.
+### SwigLu
 
-- Source code [nn.py](../../assignments/assignment1-basics/cs336_basics/nn.py)
-- Reference [cs336_basics/nn_utils.py @ DhyeyMavani2003/stanford-cs336-assignment1-basics-solution](https://github.com/DhyeyMavani2003/stanford-cs336-assignment1-basics-solution/blob/main/cs336_basics/nn_utils.py)
-- PyTorch explanations [torch.md](../tools/torch.md)
+There are three linear layers, shown in the formula $\operatorname{FFN}(x) = W_2 \left(\operatorname{SiLU}(W_1 x) \odot W_3 x\right)$, and they are defined in the constructor, while the formula is implemented in `forward()`.
+
+### RoPE
+
+The key point is given a pair of `theta`, `d_k`, and `max_seq_len`, then the full rotation matrix is fixed. Inside the matrix, only two kinds of number is stored, given by a pair of `i` and `k`, which are `sin` and `cos`. So there are two tensors used to store the values, instead of the matrix, since most elements are just zeros.
+
+These two tensors are passed to [`self.register_buffer()`](https://docs.pytorch.org/docs/2.14/generated/torch.nn.Module.html#torch.nn.Module.register_buffer), instead of `nn.Parameter()`, since they are like constants, not learned parameters, and can be restored easily.
+
+The key part is to use `torch.arrange()` to create index related tensors for the later computation.
+
+- `position = torch.arrange(max_seq_len)`
+- `k = torch.arrange(d_k // 2)`
+
+In the `forward()` function, the rotation block is restored by a given position, then merged with `torch.stack()`.
+
+Currently to save a little bit space, a singleton pattern is used. See `get_rope(cfg, devide)`.
+
+### Softmax
+
+The helper function `softmax` in `nn_utils.py` basically implements the standard softmax, but in order to avoid `NaN` error, the formula is shifted a little bit with the following transformation:
+
+$$
+\begin{aligned}
+\operatorname{softmax}(v)_i
+&= \frac{\exp(v_i)}{\sum\nolimits_{j=1}^n \exp(v_j)} \\
+&= \frac{\exp(v_i)/\exp(v_{max})}{\sum\nolimits_{j=1}^n \left(\exp(v_j)/\exp(v_{max})\right)} \\
+&= \frac{\exp(v_i - v_{max})}{\sum\nolimits_{j=1}^n \exp(v_j - v_{max})}
+\end{aligned}
+$$
+
+### Scaled Dot-product Attention
+
+This is another helper function. The implementation is also pretty straightforward. The key API used is [`torch.Tensor.masked_fill`](https://docs.pytorch.org/docs/2.14/generated/torch.Tensor.masked_fill.html), which returns a new tensor, according to the binary matrix `mask`, if exist, if an element in `mask` is true, then the value in the original matrix is copied, otherwise the new value is set to negative infinite.
+
+> [!NOTE]
+> There is another in-place API which is `torch.Tensor.masked_fill_()`.
+
+### Multi-Head Self-Attention
+
+There are two test cases associated with `uv run pytest -k test_multihead_self_attention`, one without RoPE while the other one with RoPE.
+
+The prototypes of the constructor and `forward` of `MultiheadSelfAttention` were not given in the assignment, so they are inferred from the adapters.
+
+In the Equation 14, there are four linear layers. These layers are named based on the adapters, for example in `run_transformer_block`, so that `.load_state_dict()` can be used instead of assigning to `.weight.data` one by one. That is why `output_proj` is named instead of `o_proj`.
+
+In the `forward()` function, the combination of `torch.tril()` and `torch.ones()` creates a lower triangle matrix filled by `1`s. `Q`, `K`, and `V` first get computed, then rearranged for `scaled_dot_product_attention()`. The output is rearranged before passing to `.output_proj()`.
+
+### Transformer Block
+
+The layers are also named after the usage in the test cases. The key in `forward` is the use of `torch.arange()` to create `token_positions`, which is used by RoPE.
+
+### Transformer LM
+
+[`torch.nn.ModuleList()`](https://docs.pytorch.org/docs/2.14/generated/torch.nn.ModuleList.html) creates an object to hold modules like a regular Python list. In this case, it holds `num_layers` of `TransformerBlock`s.
+
+### ReProblem 3a
+
+> Consider a GPT-2 XL-sized model using our assignment architecture, which has the following configuration:
+>
+> - vocab_size: 50,257
+> - context_length: 1,024
+> - num_layers: 48
+> - d_model: 1,600
+> - num_heads: 25
+> - d_ff: 4,288 (the nearest multiple of 64 to 8 / 3 × 1,600)
+>
+> Suppose we constructed our model using this configuration. How many trainable parameters would our model have? Assuming each parameter is represented using single-precision floating point, how much memory is required to just load this model?
+
+Let's break it down.
+
+1. The `token_embeddings` layer has $\mathrm{vocab_size} \times \mathrm{d_model} = 80,411,200$ parameters.
+2. The `ln_final` layer has 1,600 parameters.
+3. The `lm_head` layer has $\mathrm{d_model} \times \mathrm{vocab_size} = 80,411,200$ parameters.
+
+Now let's dig into a single `TransformerBlock`.
+
+1. `ln` has 1,600 parameters.
+2. `ln2` has 1,600 parameters.
+3. `ffn` has $3 \times \mathrm{d_model} \times \mathrm{d_ff} = 3 \times 1600 \times 4288 = 20,582,400$ parameters.
+4. `attn` has $4 \times \mathrm{d_model} \times \mathrm{d_model} = 4 \times 1600 \times 1600 = 10,240,000$ parameters.
+
+So a single `TransformerBlock` layer has $1600 \times 2 + 20582400 + 10240000 = 30,825,600$ parameters.
+
+Thus the number of total trainable parameters is:
+
+$$
+80411200 \times 2 + 1600 + 30825600 \times 48 = 1,640,452,800 \approx 1.5B
+$$
+
+This model requires 6.56 GB memory approximately.
+
+### Problem 3b
+
+> Identify the matrix multiplies required to complete a forward pass of our GPT-2 XL-shaped model. How many FLOPs do these matrix multiplies require in total? Assume that our input sequence has `context_length` tokens.
+
+`.token_embeddings()` looks up from the embedding table, no computation involved. The returned matrix $\in \mathbb{R}^{\mathrm{context_length} \times \mathrm{d_model}}$.
+
+| Module | Shapes | FLOPs |
+| :----: | :----: | :---: |
+| `Linear` | $x \in \mathbb{R}^{m \times n}$, $W \in \mathbb{R}^{n \times p}$ | $2mnp$ |
+| `SwigLU` | $x \in \mathbb{R}^{\mathrm{seq} \times d_{\mathrm{model}}}$ | $6\mathrm{seq}d_{\mathrm{model}}d_{\mathrm{ff}}$ |
+| `MultiheadSelfAttention` | $x \in \mathbb{R}^{\mathrm{seq} \times d_{\mathrm{model}}}$ | $8\mathrm{seq}d_{\mathrm{model}}^2 + 4\mathrm{seq}^2d_{\mathrm{model}}$ |
+| `TransformerBlock` | $x \in \mathbb{R}^{\mathrm{seq} \times d_{\mathrm{model}}}$ | `attn` + `ffn` |
+| `lm_head` | $x \in \mathbb{R}^{\mathrm{seq} \times d_{\mathrm{model}}}$ | $2 \mathrm{seq} \times d_{\mathrm{model}} \times \mathrm{vocab}$ |
+
+Notes:
+
+- `SwigLU`:
+  - `.w1()` and `.w3()` take $2 \times 2 \mathrm{seq} d_{\mathrm{model}}d_{\mathrm{ff}}$ FLOPs in total.
+  - The final `.w2()` takes $2 \mathrm{seq} d_{\mathrm{model}}d_{\mathrm{ff}}$ FLOPs.
+- `MultiheadSelfAttention`:
+  - Q, K, and V take $3 \times 2 \mathrm{seq} d_{\mathrm{model}}^2$ FLOPs.
+  - In `scaled_dot_product_attention`:
+    - The `einsum` of `score` takes $\mathrm{heads} \times 2\mathrm{seq}^2d_k = 2\mathrm{seq}^2d_{\mathrm{model}}$ FLOPs.
+    - The final `einsum` takes $2 \mathrm{seq}^2 d_{\mathrm{model}}$ FLOPs.
+  - The final output projection takes $2 \mathrm{seq} d_{\mathrm{model}}^2$ FLOPs.
+- `TransformerBlock`:
+  - Pre-norm layers do not contribute matrix multiplies.
+  - So the FLOPs of a single `TransformerBlock` is the sum of `attn` and `ffn`.
+
+Thus, the total FLOPs required:
+
+$$
+\begin{aligned}
+\mathrm{total} &= \mathrm{layers} \times (\mathrm{attn} + \mathrm{ffn}) + \mathrm{lm\_head} \\
+&= 48 \times (8 \times 1024 \times 1600^2 + 4 \times 1024^2 \times 1600 + 6 \times 1024 \times 1600 \times 4288) + 2 \times 1024 \times 1600 \times 50257 \\
+&= 48 \times (20,971,520,000 + 6,710,886,400 + 42,152,755,200) + 164,682,137,600 \\
+&= 3,516,769,894,400 \approx 3.52 \times 10^{12}
+\end{aligned}
+$$
+
+### Problem 3c
+
+> Based on your analysis above, which parts of the model require the most FLOPs?
+
+The FFN is the largest per Transformer block. Within attention, the Q/K/V/output projections cost more than the attention score/value mixing at context length 1024. The `lm_head` is also expensive because it projects every position from `d_model` to the full vocabulary, but it happens only once, while attention and FFN happen once per Transformer block.
+
+### Problem 3d
+
+> Repeat your analysis with GPT-2 small (12 layers, 768 d_model, 12 heads), GPT-2 medium (24 layers, 1024 d_model, 16 heads), and GPT-2 large (36 layers, 1280 d_model, 20 heads). As the model size increases, which parts of the Transformer LM take up proportionally more or less of the total FLOPs?
+
+Let's fix `context_length` to `1024`.
+
+|     | Formula | GPT-2 small | GPT-2 medium | GPT-2 large | GPT-2 XL
+| :-- | :------ | :--: | :--: | :--: | :--: |
+| `d_ff` | $\frac{8}{3} \mathrm{d\_model}$ | 2048 | 2752 | 3392 | 4288 |
+| Attention projection | $8 \mathrm{seq} d_{\mathrm{model}}^2$ | 4.5Gi | 8Gi | 12.5Gi | 19.53Gi |
+| Attention score | $4 \mathrm{seq}^2 d_{\mathrm{model}}$ | 3Gi | 4Gi | 5Gi | 6.25Gi |
+| FFN | $6 \mathrm{seq} d_{\mathrm{model}} d_{\mathrm{ff}}$ | 9Gi | 16.13Gi | 24.84Gi | 39.26Gi |
+| lm_head | $2 \mathrm{seq} d_{\mathrm{model}} \mathrm{vocab}$ | 73.62Gi | 98.16Gi | 122.70Gi | 153.37Gi |
+| total | $\mathrm{layers} \times (\mathrm{attn\_proj} + \mathrm{attn\_score} + \mathrm{ffn}) + \mathrm{lm\_head}$ | 271.62Gi | 773.16Gi | 1647.07Gi | 3275.25Gi |
+
+As the model size increases, `lm_head` takes less of the total FLOPs, while attention projection and FFN increase significantly.
+
+### Problem 3e
+
+> Take GPT-2 XL and increase the context length to 16,384. How does the total FLOPs for one forward pass change? How does the relative contribution of FLOPs of the model components change?
+
+| Context Length | 1024 | 16,384 |
+| :------------- | ---: | -----: |
+| Attention projection | 19.53Gi | 312.5Gi |
+| Attention score | 6.25Gi | 1600Gi |
+| FFN | 39.26Gi | 628.13Gi |
+| lm_head | 153.37Gi | 2453.96Gi |
+| total | 3275.25Gi | 124403.96Gi |
+
+Increasing context length from 1,024 to 16,384 makes the sequence 16x longer. Attention projection, FFN and lm_head term scale linearly with sequence length, so they grow by 16x. The attention score/value mixing term scales quadratically with sequence length, so it grows by 256x.
+
+As a result, the attention score/value term becomes much more important. At context length 1,024, FFN is the largest per-block cost. At context length 16,384, the quadratic attention term dominates the per-block FLOPs.
