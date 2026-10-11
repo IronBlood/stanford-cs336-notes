@@ -7,8 +7,8 @@ def softmax(x: torch.Tensor, dim: int) -> torch.Tensor:
     x_max = x.max(dim=dim, keepdim=True).values
     shifted = x - x_max
     e = torch.exp(shifted)
-    sum = e.sum(dim=dim, keepdim=True)
-    return e / sum
+    exp_sum = e.sum(dim=dim, keepdim=True)
+    return e / exp_sum
 
 def scaled_dot_product_attention(
     Q: Float[torch.Tensor, " ... queries d_k"],

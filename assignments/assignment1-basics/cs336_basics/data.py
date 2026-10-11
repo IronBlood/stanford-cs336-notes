@@ -52,10 +52,11 @@ def save_checkpoint(
 def load_checkpoint(
     src: str | os.PathLike | typing.BinaryIO | typing.IO[bytes],
     model: torch.nn.Module,
-    optimizer: torch.optim.Optimizer,
+    optimizer: typing.Optional[torch.optim.Optimizer]=None,
 ) -> int:
     """Restore model and optimizer state and return the saved iteration count."""
     checkpoint = torch.load(src, map_location="cpu", weights_only=True)
     model.load_state_dict(checkpoint["model"])
-    optimizer.load_state_dict(checkpoint["optimizer"])
+    if optimizer is not None:
+        optimizer.load_state_dict(checkpoint["optimizer"])
     return checkpoint["iteration"]

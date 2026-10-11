@@ -106,5 +106,22 @@ mod cs336_basics {
         fn decode(&self, ids: Vec<u16>) -> String {
             self.inner.decode(&ids)
         }
+
+        #[staticmethod]
+        fn load(
+            vocab_path: String,
+            merges_path: String,
+            special_tokens: Vec<String>,
+        ) -> PyResult<Self> {
+            let gpt2_regex_str =
+                r"'(?:[sdmt]|ll|ve|re)| ?\p{L}++| ?\p{N}++| ?[^\s\p{L}\p{N}]++|\s++$|\s+(?!\S)|\s";
+            let inner = Tokenizer::load(&vocab_path, &merges_path, &special_tokens, gpt2_regex_str)
+                .map_err(|err| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "Failed to load tokenizer: {err:?}"
+                    ))
+                })?;
+            Ok(Self { inner })
+        }
     }
 }
