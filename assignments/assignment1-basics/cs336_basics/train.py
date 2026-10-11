@@ -19,6 +19,12 @@ For a full run, omit --steps and tune --warmup-steps and optimizer settings.
 Use --device cpu for CPU training.
 To resume, add --resume PATH and keep the same model architecture settings;
 --steps is the total target step count, including completed steps.
+
+Metrics are appended to output-dir/metrics.jsonl. elapsed_seconds measures time
+since this session's training loop began, including evaluation and saving.
+duration_seconds measures the training interval or individual event duration.
+Each invocation has a separate session_id and records its configuration.
+tokens_processed assumes the batch size and context length are unchanged on resume.
 """
 
 import argparse
@@ -26,6 +32,7 @@ import json
 import math
 import time
 from pathlib import Path
+from uuid import uuid4
 
 import numpy as np
 import torch
@@ -183,9 +190,33 @@ def main() -> None:
     model.train()
     loss_sum = 0.0
     interval_steps = 0
+    interval_duration = 0.0
     synchronize(device)
-    interval_start = time.perf_counter()
+    session_start = time.perf_counter()
+    session_id = uuid4().hex
+    metrics_path = args.output_dir / "metrics.jsonl"
+    tokens_per_step = args.batch_size * args.context_length
+
+    def record_metrics(event: str, completed: int, duration: float, **values) -> None:
+        record = {
+            "schema_version": 1,
+            "session_id": session_id,
+            "session_start_step": start,
+            "event": event,
+            "step": completed,
+            "tokens_processed": completed * tokens_per_step,
+            "session_tokens_processed": (completed - start) * tokens_per_step,
+            "elapsed_seconds": time.perf_counter() - session_start,
+            "duration_seconds": duration,
+            **values,
+        }
+        with metrics_path.open("a") as handle:
+            handle.write(json.dumps(record, allow_nan=False) + "\n")
+            handle.flush()
+
+    record_metrics("session_start", start, 0.0, config=config)
     for step in range(start, args.steps):
+        step_start = time.perf_counter()
         lr = get_lr_cosine(step, args.lr, args.min_lr, args.warmup_steps, args.steps)
         for group in optimizer.param_groups:
             group["lr"] = lr
@@ -201,10 +232,18 @@ def main() -> None:
         completed = step + 1
         loss_sum += loss.item()
         interval_steps += 1
+        interval_duration += time.perf_counter() - step_start
         if completed % args.log_every == 0 or completed == args.steps:
             synchronize(device)
-            elapsed = time.perf_counter() - interval_start
-            throughput = interval_steps * args.batch_size * args.context_length / elapsed
+            throughput = interval_steps * tokens_per_step / interval_duration
+            record_metrics(
+                "train", completed, interval_duration,
+                interval_steps=interval_steps,
+                loss=loss_sum / interval_steps,
+                lr=lr,
+                grad_norm=grad_norm.item(),
+                tokens_per_second=throughput,
+            )
             print(
                 f"step={completed} train_loss={loss_sum / interval_steps:.4f} "
                 f"lr={lr:.6g} grad_norm={grad_norm.item():.4f} tokens_per_second={throughput:.0f}",
@@ -212,17 +251,32 @@ def main() -> None:
             )
             loss_sum = 0.0
             interval_steps = 0
+            interval_duration = 0.0
         if completed % args.eval_every == 0 or completed == args.steps:
+            synchronize(device)
+            validation_start = time.perf_counter()
             valid_loss = evaluate(model, valid_data, args)
+            synchronize(device)
+            validation_duration = time.perf_counter() - validation_start
             perplexity = math.exp(valid_loss) if valid_loss < 700 else math.inf
+            record_metrics(
+                "validation", completed, validation_duration,
+                loss=valid_loss if math.isfinite(valid_loss) else None,
+                perplexity=perplexity if math.isfinite(perplexity) else None,
+                eval_batches=args.eval_batches,
+                evaluated_tokens=args.eval_batches * tokens_per_step,
+            )
             print(f"step={completed} valid_loss={valid_loss:.4f} perplexity={perplexity:.2f}", flush=True)
         if completed % args.save_every == 0 or completed == args.steps:
             checkpoint_path = args.output_dir / f"checkpoint-{completed}.pt"
+            checkpoint_start = time.perf_counter()
             save_checkpoint(model, optimizer, completed, checkpoint_path)
+            record_metrics(
+                "checkpoint", completed, time.perf_counter() - checkpoint_start,
+                path=str(checkpoint_path),
+            )
             print(f"checkpoint={checkpoint_path}", flush=True)
-        if interval_steps == 0:
-            synchronize(device)
-            interval_start = time.perf_counter()
+    record_metrics("session_end", args.steps, time.perf_counter() - session_start)
 
 
 if __name__ == "__main__":
