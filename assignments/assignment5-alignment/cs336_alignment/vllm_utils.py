@@ -44,7 +44,7 @@ class VLLMServer:
         self.process = None
         self.weight_sync_group = None
 
-    def start(self) -> None:
+    def start(self, wait_for_ready: bool = True) -> None:
         if self.launch_server:
             kill_existing_vllm_server(self.port)
             self.process = start_server(
@@ -58,7 +58,8 @@ class VLLMServer:
                 gpu_memory_utilization=self.gpu_memory_utilization,
             )
             atexit.register(self.stop)
-        wait_for_server(self.base_url, self.process, self.startup_timeout)
+        if wait_for_ready:
+            wait_for_server(self.base_url, self.process, self.startup_timeout)
 
     def stop(self) -> None:
         stop_server(self.process, timeout=self.shutdown_timeout)
@@ -197,6 +198,8 @@ def generate_completions(
             "model": model_id,
             "prompt": prompt_batch,
             "temperature": sampling_params["temperature"],
+            "top_p": sampling_params.get("top_p", 1.0),
+            "top_k": sampling_params.get("top_k", 0),
             "max_tokens": sampling_params["max_tokens"],
             "n": sampling_params["n"],
             "seed": sampling_params["seed"],
