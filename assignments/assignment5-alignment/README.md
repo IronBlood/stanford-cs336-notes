@@ -13,14 +13,19 @@ raise a GitHub issue or open a pull request with a fix.
 As in previous assignments, we use `uv` to manage dependencies.
 
 1. Install all packages except `flash-attn`, then all packages (`flash-attn` is weird)
-```
+
+```bash
 uv sync --no-install-package flash-attn
 uv sync
+
+# to install vLLM
+uv sync --extra gpu --no-install-package flash-attn
+uv sync --extra gpu
 ```
 
 2. Run the required unit tests:
 
-``` sh
+```bash
 uv run pytest tests/test_grpo.py
 ```
 
